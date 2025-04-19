@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Product</title>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            color: #333;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .product-info {
+            margin-bottom: 20px;
+        }
+        .product-info h2 {
+            margin-top: 0;
+        }
+        .product-info p {
+            margin: 10px 0;
+        }
+        .product-info p strong {
+            display: inline-block;
+            width: 120px;
+        }
+        .track-form {
+            text-align: center;
+        }
+        .track-form input[type="email"],
+        .track-form input[type="text"] {
+            width: calc(100% - 24px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .track-form button {
+            width: calc(100% - 22px);
+            background-color: #ff9900;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .track-form button:hover {
+            background-color: #e68a00;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #ff9900;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .notification {
+            display: none;
+            text-align: center;
+            padding: 10px;
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .notification.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .notification.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        /* Loading spinner styles */
+        .loading-spinner {
+            display: none; /* Initially hidden */
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            border: 8px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 8px solid #ff9900;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            z-index: 1000;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Track Product</h1>
+        <div class="product-info">
+            <h2>{{ product_details.title }}</h2>
+            <p><strong>Price:</strong> ₹{{ product_details.price }}</p>
+            <p><strong>Ratings:</strong> {{ product_details.ratings }}</p>
+            <p><strong>Reviews:</strong> {{ product_details.reviews }}</p>
+            <p><strong>Description:</strong> {{ product_details.description }}</p>
+        </div>
+
+        <div class="track-form">
+            <h2>Track this Product</h2>
+            <input type="email" id="email" placeholder="Enter your email" required>
+            <input type="text" id="product-url" value="{{ product_details.url }}" readonly>
+            <button id="notify-button" onclick="trackProduct()">Notify Me</button>
+        </div>
+
+        <a class="back-link" href="/">Back to Search</a>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="loading-spinner"></div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <script>
+    function trackProduct() {
+        const email = document.getElementById('email').value;
+        const product_url = document.getElementById('product-url').value;
+        const notifyButton = document.getElementById('notify-button');
+        const spinner = document.getElementById('loading-spinner');
+
+        if (email === '' || product_url === '') {
+            alert('Please fill in all fields.');
+            return;
+        }
+
+        // Disable the button and show the spinner
+        notifyButton.disabled = true;
+        spinner.style.display = 'block';
+
+        const data = new URLSearchParams();
+        data.append('email', email);
+        data.append('producturl', product_url);
+
+        fetch('/track', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: data.toString()
+        })
+        .then(response => response.json())
+        .then(data => {
+            const notification = document.getElementById('notification');
+            if (data.message) {
+                notification.className = 'notification success';
+                notification.textContent = data.message;
+                notification.style.display = 'block';
+                setTimeout(() => {
+                    notification.style.display = 'none';
+                }, 3000);
+            } else {
+                notification.className = 'notification error';
+                notification.textContent = 'Error: ' + data.error;
+                notification.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            const notification = document.getElementById('notification');
+            notification.className = 'notification error';
+            notification.textContent = 'An error occurred. Please try again.';
+            notification.style.display = 'block';
+        })
+        .finally(() => {
+            // Hide the spinner after processing
+            spinner.style.display = 'none';
+        });
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Details</title>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            color: #333;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .product-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        .product-images {
+            flex: 1 1 100%;
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            justify-content: center;
+        }
+        .product-images img {
+            max-height: 200px;
+            border-radius: 10px;
+            object-fit: contain;
+        }
+        .product-info {
+            flex: 1 1 100%;
+            text-align: left;
+        }
+        .product-info h2 {
+            margin-top: 0;
+        }
+        .product-info p {
+            margin: 10px 0;
+        }
+        .product-info p strong {
+            display: inline-block;
+            width: 120px;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #ff9900;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .track-button {
+            background-color: #ff9900;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px;
+            cursor: pointer;
+            float: right;
+        }
+        .track-button:hover {
+            background-color: #e68a00;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            border-radius: 5px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+        }
+        .modal-body {
+            padding: 10px 0;
+        }
+        .modal-body input[type="text"],
+        .modal-body input[type="email"] {
+            width: calc(100% - 24px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .modal-body button {
+            width: calc(100% - 22px);
+            background-color: #ff9900;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .modal-body button:hover {
+            background-color: #e68a00;
+        }
+        .notification {
+            display: none;
+            text-align: center;
+            padding: 10px;
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body></body>
+    <div class="container">
+        <h1>Product Details</h1>
+        <div class="product-details">
+            <div class="product-images">
+                {% for image in product_details.images %}
+                    <img src="{{ image }}" alt="Product Image">
+                {% endfor %}
+            </div>
+            <div class="product-info">
+                <h2>{{ product_details.title }}</h2>
+                <p><strong>Price:</strong> {{ product_details.price }}</p>
+                <p><strong>Ratings:</strong> {{ product_details.ratings }}</p>
+                <p><strong>Reviews:</strong> {{ product_details.reviews }}</p>
+                <p><strong>Description:</strong> {{ product_details.description }}</p>
+                <button class="track-button" onclick="document.getElementById('trackModal').style.display='block'">Track</button>
+            </div>
+        </div>
+        <a class="back-link" href="/">Back to Search</a>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Modal -->
+    <div id="trackModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="document.getElementById('trackModal').style.display='none'">&times;</span>
+            <div class="modal-body">
+                <h2>Track Price</h2>
+                <input type="email" id="email" placeholder="Enter your email" required>
+                <input type="text" id="url" placeholder="Enter product URL" value="{{ product_details.url }}" readonly>
+                <button onclick="trackPrice()">Notify Me</button>
+            </div>
+        </div>
+    </div>
+    <script>
+    function trackPrice() {
+        const email = document.getElementById('email').value;
+        const product_url = document.getElementById('url').value;
+
+        if (email === '' || product_url === '') {
+            alert('Please fill in all fields.');
+            return;
+        }
+
+        const data = new URLSearchParams();
+        data.append('email', email);
+        data.append('url', product_url);
+
+        fetch('/track', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: data.toString()
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                document.getElementById('notification').className = 'notification success';
+                document.getElementById('notification').textContent = data.message;
+                document.getElementById('notification').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('notification').style.display = 'none';
+                }, 3000);
+                document.getElementById('trackModal').style.display = 'none';
+            } else {
+                document.getElementById('notification').className = 'notification error';
+                document.getElementById('notification').textContent = 'Error: ' + data.message;
+                document.getElementById('notification').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('notification').className = 'notification error';
+            document.getElementById('notification').textContent = 'An error occurred. Please try again.';
+            document.getElementById('notification').style.display = 'block';
+        });
+    }
+    </script>
+</body>
+</html>
