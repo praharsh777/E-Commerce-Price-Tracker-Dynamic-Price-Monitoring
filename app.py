@@ -225,7 +225,6 @@ def track():
     msg = f"Hi, you're now tracking: {details['title']}\nCurrent Price: ₹{details['price']}\nLink: {url}"
     send_email_notification(email, 'Product Tracking Confirmation', msg)
     return jsonify({'message': 'Tracking started successfully!'})
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
 
-
-if __name__ == '__main__':
-    app.run(debug=True)
