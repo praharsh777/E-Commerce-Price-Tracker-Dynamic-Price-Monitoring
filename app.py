@@ -8,7 +8,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from apscheduler.schedulers.background import BackgroundScheduler
 import mysql.connector
-
+import time
 app = Flask(__name__)
 
 # Database connection
@@ -98,7 +98,6 @@ def get_amazon_product_details(url):
 
     except requests.exceptions.RequestException as e:
         return {'error': f'An error occurred: {str(e)}'}
-
 def get_flipkart_product_details(url):
     headers = {
         'User-Agent': get_random_user_agent(),
@@ -119,42 +118,48 @@ def get_flipkart_product_details(url):
         price = price_elem.get_text(strip=True) if price_elem else 'Price not found'
 
         # Extract ratings
-        ratings_elem = soup.find('div', {'class': 'XQDdHH'})
+        ratings_elem = soup.find('div', {'class': '_5OesEi HDvrBb'})
         ratings = ratings_elem.get_text(strip=True) if ratings_elem else 'Ratings not found'
 
         # Extract reviews
-        reviews_elem = soup.find('span', {'class': 'Wphh3N'})
+        reviews_elem = soup.find('span', {'class': '_2_R_DZ'})
         reviews = reviews_elem.get_text(strip=True) if reviews_elem else 'Reviews not found'
 
         # Extract description
-        description_elem = soup.find('div', {'class': '_4gvKMe'})
+        description_elem = soup.find('div', {'class': 'yN+eNk'})
         description = description_elem.get_text(strip=True) if description_elem else 'Description not found'
 
-        # Extract images
-        images = [img.get('src', 'No source') for img in soup.select('#container > div > div._39kFie.N3De93.JxFEK3._48O0EI > div.DOjaWF.YJG4Cf > div.DOjaWF.gdgoEp.col-5-12.MfqIAz img')]
+        # ✅ Extract images from inside "_4WELSP _6lpKCl" container
+        image_wrappers = soup.select('div._4WELSP._6lpKCl img')
+        images = []
+        for img in image_wrappers:
+            src = img.get('src') or img.get('data-src')
+            if src:
+                images.append(src)
 
         product_details = {
             'url': url,
             'title': title,
             'price': convert_price(price),
-            'ratings': ratings + " ★ out of 5★ ",
+            'ratings': ratings,
             'reviews': reviews,
             'description': description,
-            'images': ','.join(images)  # Convert list to comma-separated string for CSV
+            'images': ','.join(images)
         }
 
         return product_details
 
-    except requests.exceptions.RequestException as e:
-        return {'error': f'An error occurred: {str(e)}'}
+    except Exception as e:
+        return {'error': f'Flipkart scraping failed: {str(e)}'}
 
 def get_product_details(url):
-    if 'amazon.in' in url:
+    if 'amazon.in' in url or 'amzn.in' in url:
         return get_amazon_product_details(url)
     elif 'flipkart.com' in url:
         return get_flipkart_product_details(url)
     else:
         return {'error': 'Unsupported URL'}
+
 
 def save_product_details(product_details):
     try:
@@ -216,34 +221,42 @@ def check_prices():
             product_url = tracking[1]
             initial_price = tracking[2]
 
-            # Scrape the current product details
+            # Skip if initial_price is None
+            if initial_price is None:
+                print(f"Skipping {product_url} because initial_price is missing.")
+                continue
+
+            # Scrape current price
             product_details = get_product_details(product_url)
             if 'error' in product_details:
                 continue
 
             current_price = product_details['price']
+
             try:
                 current_price = float(current_price)
                 initial_price = float(initial_price)
-            except ValueError:
-                continue  # Skip the product if price conversion fails
+            except (ValueError, TypeError):
+                print(f"Skipping {product_url} due to conversion issue.")
+                continue
 
-            # If the current price is lower than the initial price, send an email notification
-            if current_price and initial_price and current_price < initial_price:
+            if current_price < initial_price:
                 subject = 'Price Drop Alert!'
-                message = f"The price of the product you are tracking has dropped.\n\n" \
-                          f"Product: {product_details['title']}\n" \
-                          f"New Price: {product_details['price']}\n" \
-                          f"Link: {product_url}\n"
+                message = f"The price of the product you're tracking has dropped!\n\n" \
+                        f"Product: {product_details['title']}\n" \
+                        f"New Price: {current_price}\n" \
+                        f"Link: {product_url}"
                 send_email_notification(email, subject, message)
+
 
     except mysql.connector.Error as err:
         print(f"Error: {err}")
 
 # Scheduler to run price check every hour
 scheduler = BackgroundScheduler()
-scheduler.add_job(check_prices, 'interval', hours=1)
+scheduler.add_job(check_prices, 'interval', minutes=5)
 scheduler.start()
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -274,21 +287,38 @@ def track():
     if 'error' in product_details:
         return jsonify({'error': product_details['error']})
 
-    # Save tracking details
     try:
+        # Check if user is already tracking this product
+        cursor.execute("SELECT * FROM tracking_details WHERE email = %s AND producturl = %s", (email, url))
+        if cursor.fetchone():
+            return jsonify({'error': 'You are already tracking this product.'})
+
+        # Get current price at the time of tracking
+        initial_price = product_details['price']
+
+        if initial_price is None:
+            return jsonify({'error': 'Price could not be determined for this product.'})
+
+        # Insert into tracking table
         query = """
-        INSERT INTO tracking_details (email, producturl, timestamp)
-        VALUES (%s, %s, NOW())
+        INSERT INTO tracking_details (email, producturl, initial_price, timestamp)
+        VALUES (%s, %s, %s, NOW())
         """
-        values = (email, url)
+        values = (email, url, initial_price)
         cursor.execute(query, values)
         db.commit()
 
         # Send confirmation email
         subject = 'Product Tracking Confirmation'
-        message = f"Thank you for tracking your product with us. We'll keep an eye on the price and notify you if the prize drops. {url}.\n\n" \
-                  f"Product: {product_details['title']}\n" \
-                  f"urrent Price: {product_details['price']}\n"
+        message = (
+            f"Hi there!\n\n"
+            f"You have successfully started tracking the product:\n\n"
+            f"Title: {product_details['title']}\n"
+            f"Current Price: ₹{product_details['price']}\n"
+            f"Product Link: {url}\n\n"
+            f"We’ll notify you if the price drops. Stay tuned!\n\n"
+            f"– TrackMyDeal Team"
+        )
         send_email_notification(email, subject, message)
 
         return jsonify({'message': 'Product tracking started successfully!'})

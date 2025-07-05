@@ -5,59 +5,208 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product Tracker</title>
     <style>
+        :root {
+            --bg-light: #f4f4f4;
+            --text-light: #333;
+            --bg-dark: #1e1e2f;
+            --text-dark: #f0f0f0;
+            --primary: #007bff;
+        }
+
         body {
             font-family: Arial, sans-serif;
-            padding: 20px;
-            background-color: #f4f4f4;
+            padding: 0;
+            margin: 0;
+            background-color: var(--bg-light);
+            color: var(--text-light);
+            transition: background-color 0.3s, color 0.3s;
         }
+
+        body.dark {
+            background-color: var(--bg-dark);
+            color: var(--text-dark);
+        }
+
+        .navbar {
+            background-color: #1e1e2f;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .navbar nav a {
+            color: #fff;
+            margin: 0 1rem;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+
+        .navbar nav a:hover {
+            color: #ff9900;
+        }
+
+        .toggle-btn {
+            background-color: #ff9900;
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
         .container {
             max-width: 600px;
-            margin: auto;
+            margin: 60px auto 40px;
             background: #fff;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            transition: background-color 0.3s, color 0.3s;
         }
+
+        body.dark .container {
+            background-color: #2e2e3e;
+            color: #fff;
+        }
+
         h1 {
             margin-bottom: 20px;
             text-align: center;
         }
+
         .form-group {
             margin-bottom: 15px;
         }
+
         .form-group label {
             display: block;
             margin-bottom: 5px;
         }
+
         .form-group input[type="text"] {
-            width: 100%;
+            width: 95%;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
         }
+
         .form-group input[type="submit"] {
-            background: #007bff;
+            background: var(--primary);
             color: #fff;
             border: none;
             padding: 10px 20px;
             border-radius: 4px;
             cursor: pointer;
         }
+
         .form-group input[type="submit"]:hover {
             background: #0056b3;
         }
+
         .error {
             color: red;
             font-weight: bold;
         }
+
+        footer {
+            background-color: #1e1e2f;
+            color: #f0f0f0;
+            padding: 40px 20px 20px;
+            font-size: 0.9rem;
+        }
+
+        .footer-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .footer h3, .footer h4 {
+            margin-bottom: 10px;
+        }
+
+        .footer ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .footer ul li {
+            margin: 5px 0;
+        }
+
+        .footer ul li a {
+            color: #f0f0f0;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer ul li a:hover {
+            color: #ff9900;
+        }
+
+        .footer-bottom {
+            text-align: center;
+            margin-top: 20px;
+            border-top: 1px solid #444;
+            padding-top: 10px;
+            font-size: 0.85rem;
+            color: #ccc;
+        }
+
+        body.dark footer {
+            background-color: #111;
+            color: #ddd;
+        }
+
+        body.dark .footer ul li a {
+            color: #ddd;
+        }
+
+        body.dark .footer ul li a:hover {
+            color: #bb86fc;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .footer-container {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .navbar {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- Navbar -->
+    <div class="navbar">
+        <nav>
+            <a href="#home">Home</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+        </nav>
+        <button class="toggle-btn" onclick="toggleDarkMode()">Dark Mode</button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container" id="home">
         <h1>Product Tracker</h1>
         <form method="POST" action="/">
             <div class="form-group">
-                <label for="url">Enter Product URL:</label>
+                <label for="url">Enter Product URL(Amazom/Flipkart):</label>
                 <input type="text" id="url" name="url" required>
             </div>
             <div class="form-group">
@@ -68,5 +217,59 @@
             <div class="error">{{ error }}</div>
         {% endif %}
     </div>
+
+    <!-- About Section -->
+    <div class="container" id="about">
+        <h1>About</h1>
+        <p>
+            This project is a full-stack web application designed to help users monitor and track prices of online products in real-time.
+            It allows users to input a product URL, automatically scrapes essential product details (title, price, images, ratings, etc.),
+            and displays them clearly. Users can also choose to track the product via email, and our system will notify them whenever the
+            price drops — helping them save money effortlessly.
+        </p>
+    </div>
+
+    <!-- Contact Section -->
+    <div class="container" id="contact">
+        <h1>Contact</h1>
+        <p><strong>Email:</strong> support@example.com</p>
+        <p><strong>Phone:</strong> +91-123-456-7890</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div>
+                <h3>Price Tracker</h3>
+                <p>Track prices, save money. Get notified when your desired product gets cheaper!</p>
+            </div>
+            <div>
+                <h4>Quick Links</h4>
+                <ul>
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#about">About</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Contact</h4>
+                <p>Email: praharshsai867@gmail.com</p>
+                <p>Phone: +91-8522805954</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; <span id="year"></span> Price Tracker. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark');
+        }
+
+        // Auto update year
+        document.getElementById("year").textContent = new Date().getFullYear();
+    </script>
 </body>
 </html>
