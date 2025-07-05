@@ -7,139 +7,114 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from apscheduler.schedulers.background import BackgroundScheduler
-import mysql.connector
-import time
+import pandas as pd
+from datetime import datetime
+
 app = Flask(__name__)
 
-# Database connection
-db = mysql.connector.connect(
-    host=os.environ.get("MYSQLHOST"),
-    user=os.environ.get("MYSQLUSER"),
-    password=os.environ.get("MYSQLPASSWORD"),
-    database=os.environ.get("MYSQLDATABASE"),
-    port=int(os.environ.get("MYSQLPORT", 3306))
-)
-
-cursor = db.cursor()
-
-# Directory paths for data storage (currently unused)
+# Setup data directories
 product_details_dir = os.path.join(os.getcwd(), 'data', 'product_details')
 tracking_details_dir = os.path.join(os.getcwd(), 'data', 'tracking_details')
+
 os.makedirs(product_details_dir, exist_ok=True)
 os.makedirs(tracking_details_dir, exist_ok=True)
 
+# Define CSV file paths
+product_details_path = os.path.join(product_details_dir, 'product_details.csv')
+tracking_details_path = os.path.join(tracking_details_dir, 'tracking_details.csv')
 def get_random_user_agent():
     user_agents = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:91.0) Gecko/20100101 Firefox/91.0',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0',
-        # Add more user agents if needed
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0'
     ]
     return random.choice(user_agents)
+
 
 def convert_price(price_str):
     try:
         return float(price_str.replace(',', '').replace('₹', '').replace('$', '').strip())
-    except ValueError:
+    except:
         return None
+
 
 def get_amazon_product_details(url):
     headers = {
         'User-Agent': get_random_user_agent(),
         'Accept-Language': 'en-US,en;q=0.9'
     }
-
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
+        res = requests.get(url, headers=headers)
+        soup = BeautifulSoup(res.content, 'html.parser')
 
-        # Extract title
-        title_elem = soup.find('span', {'id': 'productTitle'}) or \
-                     soup.find('h1', {'id': 'title'})
-        title = title_elem.get_text(strip=True) if title_elem else 'Title not found'
+        title = soup.find('span', {'id': 'productTitle'})
+        title = title.get_text(strip=True) if title else 'Title not found'
 
-        # Extract price
-        price_elem = soup.find('span', {'id': 'priceblock_ourprice'}) or \
-                     soup.find('span', {'id': 'priceblock_dealprice'}) or \
-                     soup.find('span', {'id': 'priceblock_saleprice'}) or \
-                     soup.find('span', {'class': 'a-price-whole'}) or \
-                     soup.find('span', {'class': 'a-price-symbol'}) or \
-                     soup.find('span', {'class': 'a-offscreen'})
+        price_elem = soup.find('span', {'class': 'a-offscreen'})
         price = price_elem.get_text(strip=True) if price_elem else 'Price not found'
 
-        # Extract ratings
-        ratings_elem = soup.find('span', {'class': 'a-icon-alt'})
-        ratings = ratings_elem.get_text(strip=True) if ratings_elem else 'Ratings not found'
+        rating = soup.find('span', {'class': 'a-icon-alt'})
+        rating = rating.get_text(strip=True) if rating else 'Ratings not found'
 
-        # Extract reviews
-        reviews_elem = soup.find('span', {'id': 'acrCustomerReviewText'})
-        reviews = reviews_elem.get_text(strip=True) if reviews_elem else 'Reviews not found'
+        reviews = soup.find('span', {'id': 'acrCustomerReviewText'})
+        reviews = reviews.get_text(strip=True) if reviews else 'Reviews not found'
 
-        # Extract description
-        description_elem = soup.find('div', {'id': 'feature-bullets'}) or \
-                           soup.find('div', {'id': 'productDescription'}) or \
-                           soup.find('div', {'id': 'productOverview'})
-        description = description_elem.get_text(strip=True) if description_elem else 'Description not found'
+        description = soup.find('div', {'id': 'feature-bullets'})
+        description = description.get_text(strip=True) if description else 'Description not found'
 
-        # Extract images
-        image_container = soup.find('div', {'id': 'imgTagWrapperId'})
-        images = [img['src'] for img in image_container.find_all('img')] if image_container else []
+        images = []
+        img_container = soup.find('div', {'id': 'imgTagWrapperId'})
+        if img_container:
+            for img in img_container.find_all('img'):
+                src = img.get('src')
+                if src:
+                    images.append(src)
 
-        product_details = {
+        return {
             'url': url,
             'title': title,
             'price': convert_price(price),
-            'ratings': ratings,
+            'ratings': rating,
             'reviews': reviews,
             'description': description,
-            'images': ','.join(images)  # Convert list to comma-separated string for CSV
+            'images': ','.join(images)
         }
+    except Exception as e:
+        return {'error': str(e)}
 
-        return product_details
 
-    except requests.exceptions.RequestException as e:
-        return {'error': f'An error occurred: {str(e)}'}
 def get_flipkart_product_details(url):
     headers = {
         'User-Agent': get_random_user_agent(),
         'Accept-Language': 'en-US,en;q=0.9'
     }
-
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
+        res = requests.get(url, headers=headers)
+        soup = BeautifulSoup(res.content, 'html.parser')
 
-        # Extract title
-        title_elem = soup.find('span', {'class': 'VU-ZEz'})
-        title = title_elem.get_text(strip=True) if title_elem else 'Title not found'
+        title = soup.find('span', {'class': 'VU-ZEz'})
+        title = title.get_text(strip=True) if title else 'Title not found'
 
-        # Extract price
-        price_elem = soup.find('div', {'class': 'Nx9bqj CxhGGd'})
-        price = price_elem.get_text(strip=True) if price_elem else 'Price not found'
+        price = soup.find('div', {'class': 'Nx9bqj CxhGGd'})
+        price = price.get_text(strip=True) if price else 'Price not found'
 
-        # Extract ratings
-        ratings_elem = soup.find('div', {'class': '_5OesEi HDvrBb'})
-        ratings = ratings_elem.get_text(strip=True) if ratings_elem else 'Ratings not found'
+        ratings = soup.find('div', {'class': '_5OesEi HDvrBb'})
+        ratings = ratings.get_text(strip=True) if ratings else 'Ratings not found'
 
-        # Extract reviews
-        reviews_elem = soup.find('span', {'class': '_2_R_DZ'})
-        reviews = reviews_elem.get_text(strip=True) if reviews_elem else 'Reviews not found'
+        reviews = soup.find('span', {'class': '_2_R_DZ'})
+        reviews = reviews.get_text(strip=True) if reviews else 'Reviews not found'
 
-        # Extract description
-        description_elem = soup.find('div', {'class': 'yN+eNk'})
-        description = description_elem.get_text(strip=True) if description_elem else 'Description not found'
+        description = soup.find('div', {'class': 'yN+eNk'})
+        description = description.get_text(strip=True) if description else 'Description not found'
 
-        # ✅ Extract images from inside "_4WELSP _6lpKCl" container
-        image_wrappers = soup.select('div._4WELSP._6lpKCl img')
         images = []
+        image_wrappers = soup.select('div._4WELSP._6lpKCl img')
         for img in image_wrappers:
             src = img.get('src') or img.get('data-src')
             if src:
                 images.append(src)
 
-        product_details = {
+        return {
             'url': url,
             'title': title,
             'price': convert_price(price),
@@ -148,11 +123,9 @@ def get_flipkart_product_details(url):
             'description': description,
             'images': ','.join(images)
         }
-
-        return product_details
-
     except Exception as e:
-        return {'error': f'Flipkart scraping failed: {str(e)}'}
+        return {'error': str(e)}
+
 
 def get_product_details(url):
     if 'amazon.in' in url or 'amzn.in' in url:
@@ -163,98 +136,64 @@ def get_product_details(url):
         return {'error': 'Unsupported URL'}
 
 
-def save_product_details(product_details):
-    try:
-        query = """
-        INSERT INTO product_details (url, title, price, ratings, reviews, description, images)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-        price = VALUES(price), ratings = VALUES(ratings), reviews = VALUES(reviews)
-        """
-        values = (
-            product_details['url'],
-            product_details['title'],
-            product_details['price'],
-            product_details['ratings'],
-            product_details['reviews'],
-            product_details['description'],
-            product_details['images']
-        )
-        cursor.execute(query, values)
-        db.commit()
-    except mysql.connector.Error as err:
-        print(f"Error: {err}")
+def save_product_details(details):
+    product_details_path = os.path.join(product_details_dir, 'product_details.csv')
+
+    # Handle empty file safely
+    if os.path.exists(product_details_path):
+        try:
+            df = pd.read_csv(product_details_path)
+        except pd.errors.EmptyDataError:
+            df = pd.DataFrame(columns=details.keys())
+    else:
+        df = pd.DataFrame(columns=details.keys())
+
+    # Check if the product already exists (optional)
+    if 'url' in df.columns and details['url'] in df['url'].values:
+        df.loc[df['url'] == details['url']] = details
+    else:
+        df = pd.concat([df, pd.DataFrame([details])], ignore_index=True)
+
+    df.to_csv(product_details_path, index=False)
+
+def save_tracking(email, url, price):
+    df = pd.read_csv(tracking_details_path) if os.path.exists(tracking_details_path) else pd.DataFrame(columns=['email', 'producturl', 'initial_price', 'timestamp'])
+    if not df[(df['email'] == email) & (df['producturl'] == url)].empty:
+        return False
+    new_entry = {'email': email, 'producturl': url, 'initial_price': price, 'timestamp': datetime.now()}
+    df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
+    df.to_csv(tracking_details_path, index=False)
+    return True
+
 
 def send_email_notification(email, subject, message):
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 465
-    smtp_username = 'trackmydeal24@gmail.com'
-    smtp_password = 'ldbl cohg ddjr aizr'  # Use environment variables in practice
-
-    sender_email = smtp_username
-    receiver_email = email
-
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = receiver_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(message, 'plain'))
-
     try:
-        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
-            server.login(smtp_username, smtp_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
+        msg = MIMEMultipart()
+        msg['From'] = 'trackmydeal24@gmail.com'
+        msg['To'] = email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(message, 'plain'))
+
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login('trackmydeal24@gmail.com', 'ldbl cohg ddjr aizr')
+            server.sendmail(msg['From'], email, msg.as_string())
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print(f"Email Error: {e}")
+
 
 def check_prices():
-    try:
-        # Query to get all tracking details from the database
-        query = """
-        SELECT email, producturl, initial_price
-        FROM tracking_details
-        """
-        cursor.execute(query)
-        tracked_products = cursor.fetchall()
+    if not os.path.exists(tracking_details_path):
+        return
 
-        # Loop through each tracked product
-        for tracking in tracked_products:
-            email = tracking[0]
-            product_url = tracking[1]
-            initial_price = tracking[2]
-
-            # Skip if initial_price is None
-            if initial_price is None:
-                print(f"Skipping {product_url} because initial_price is missing.")
-                continue
-
-            # Scrape current price
-            product_details = get_product_details(product_url)
-            if 'error' in product_details:
-                continue
-
-            current_price = product_details['price']
-
-            try:
-                current_price = float(current_price)
-                initial_price = float(initial_price)
-            except (ValueError, TypeError):
-                print(f"Skipping {product_url} due to conversion issue.")
-                continue
-
-            if current_price < initial_price:
-                subject = 'Price Drop Alert!'
-                message = f"The price of the product you're tracking has dropped!\n\n" \
-                        f"Product: {product_details['title']}\n" \
-                        f"New Price: {current_price}\n" \
-                        f"Link: {product_url}"
-                send_email_notification(email, subject, message)
+    df = pd.read_csv(tracking_details_path)
+    for _, row in df.iterrows():
+        email, url, initial_price = row['email'], row['producturl'], row['initial_price']
+        details = get_product_details(url)
+        if 'error' not in details and details['price'] and details['price'] < float(initial_price):
+            message = f"Price dropped!\nProduct: {details['title']}\nNew Price: ₹{details['price']}\nLink: {url}"
+            send_email_notification(email, 'Price Drop Alert!', message)
 
 
-    except mysql.connector.Error as err:
-        print(f"Error: {err}")
-
-# Scheduler to run price check every hour
 scheduler = BackgroundScheduler()
 scheduler.add_job(check_prices, 'interval', minutes=5)
 scheduler.start()
@@ -264,69 +203,29 @@ scheduler.start()
 def index():
     if request.method == 'POST':
         url = request.form.get('url')
-        product_details = get_product_details(url)
-        if 'error' in product_details:
-            return render_template('result.html', error=product_details['error'])
-
-        save_product_details(product_details)
-
-        return render_template('result.html', product_details=product_details)
-
+        details = get_product_details(url)
+        if 'error' in details:
+            return render_template('result.html', error=details['error'])
+        save_product_details(details)
+        return render_template('result.html', product_details=details)
     return render_template('index.html')
+
 
 @app.route('/track', methods=['POST'])
 def track():
-    # Retrieve form data
     url = request.form.get('producturl')
     email = request.form.get('email')
+    details = get_product_details(url)
+    if 'error' in details:
+        return jsonify({'error': details['error']})
 
-    # Validate input
-    if not url or not email:
-        return jsonify({'error': 'Please provide both email and product URL.'})
+    if not save_tracking(email, url, details['price']):
+        return jsonify({'error': 'Already tracking this product.'})
 
-    # Get product details
-    product_details = get_product_details(url)
-    if 'error' in product_details:
-        return jsonify({'error': product_details['error']})
+    msg = f"Hi, you're now tracking: {details['title']}\nCurrent Price: ₹{details['price']}\nLink: {url}"
+    send_email_notification(email, 'Product Tracking Confirmation', msg)
+    return jsonify({'message': 'Tracking started successfully!'})
 
-    try:
-        # Check if user is already tracking this product
-        cursor.execute("SELECT * FROM tracking_details WHERE email = %s AND producturl = %s", (email, url))
-        if cursor.fetchone():
-            return jsonify({'error': 'You are already tracking this product.'})
-
-        # Get current price at the time of tracking
-        initial_price = product_details['price']
-
-        if initial_price is None:
-            return jsonify({'error': 'Price could not be determined for this product.'})
-
-        # Insert into tracking table
-        query = """
-        INSERT INTO tracking_details (email, producturl, initial_price, timestamp)
-        VALUES (%s, %s, %s, NOW())
-        """
-        values = (email, url, initial_price)
-        cursor.execute(query, values)
-        db.commit()
-
-        # Send confirmation email
-        subject = 'Product Tracking Confirmation'
-        message = (
-            f"Hi there!\n\n"
-            f"You have successfully started tracking the product:\n\n"
-            f"Title: {product_details['title']}\n"
-            f"Current Price: ₹{product_details['price']}\n"
-            f"Product Link: {url}\n\n"
-            f"We’ll notify you if the price drops. Stay tuned!\n\n"
-            f"– TrackMyDeal Team"
-        )
-        send_email_notification(email, subject, message)
-
-        return jsonify({'message': 'Product tracking started successfully!'})
-
-    except mysql.connector.Error as err:
-        return jsonify({'error': f"Database error: {err}"})
 
 if __name__ == '__main__':
     app.run(debug=True)
