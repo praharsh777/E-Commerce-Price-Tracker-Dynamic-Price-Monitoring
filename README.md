@@ -113,10 +113,3 @@ GitHub: @praharsh777
 
 📜 License
 This project is for educational use only. Commercial scraping may violate terms of service.
-
-yaml
-Copy code
-
----
-
-Let me know if you want a shorter version or if you'd like badges, demo images, or d
