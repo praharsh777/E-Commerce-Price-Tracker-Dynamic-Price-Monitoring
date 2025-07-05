@@ -13,11 +13,13 @@ app = Flask(__name__)
 
 # Database connection
 db = mysql.connector.connect(
-    host="localhost",
-    user="root",  # Replace with your MySQL username
-    password="",  # Replace with your MySQL password
-    database="trackmydealdb"
+    host=os.environ.get("MYSQLHOST"),
+    user=os.environ.get("MYSQLUSER"),
+    password=os.environ.get("MYSQLPASSWORD"),
+    database=os.environ.get("MYSQLDATABASE"),
+    port=int(os.environ.get("MYSQLPORT", 3306))
 )
+
 cursor = db.cursor()
 
 # Directory paths for data storage (currently unused)
