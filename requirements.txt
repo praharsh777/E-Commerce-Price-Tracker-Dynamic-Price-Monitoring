@@ -1,6 +1,6 @@
-Flask==3.0.2
-requests==2.31.0
-beautifulsoup4==4.12.3
-pandas==2.2.2
-APScheduler==3.10.4
-lxml==5.2.1
+Flask
+requests
+beautifulsoup4
+apscheduler
+pandas
+gunicorn
